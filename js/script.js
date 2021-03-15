@@ -20,30 +20,6 @@ function setup(){
     var canvas = document.getElementById('my_canvas');
     var ctx = canvas.getContext('2d');
 
-    // var jcrop_api = $('#my_canvas').data("Jcrop");
-    // jcrop_api.disable()
-    // canvas.parentNode.setAttribute("style","width: "+width+"px; height: "+height+"px; position: relative; background-color: black;");
-    //
-    // jcrop_api.enable()
-    // jcrop_api.release()
-    // jcrop_api.destroy();
-    // jcrop_api.height = 700
-    // jcrop_api.init()
-    // $('#cropbox').width(500);
-
-
-    // canvas.setAttribute("style","display: block; visibility: visible; border: none; margin: 0px; padding: 0px; position: absolute; top: 0px; left: 0px; width: "+width+"px; height: "+height+"px;")
-
-    // canvas.width = width
-    // canvas.height = height
-    // ctx.width = width
-    // ctx.height = height
-    // ctx.style.height = "5";
-    // ctx.style.width = "5";
-    // ctx.width = 5;
-    // ctx.height = 5;
-    // ctx.clearRect( 0, 0, 10, 10)
-    // console.log(canvas.height)
     var image = new Image();
     var buffer = 20
     image.onload = function() {
@@ -52,24 +28,22 @@ function setup(){
     };
     image.src = "images/"+ship+"-"+year+"-"+month+"-"+page+"-aligned.png";
 }
-// let promise = fetch("");
-// console.log(promise)
+
 
 function set_image(data){
-    ship = data["ship"]
+    ship = data["ship_name"]
     year = data["year"]
     month = data["month"]
-    page = data["page"]
+    page = data["page_number"]
 
-    upper_left_corner_x = data["upper_left_corner_x"]
-    upper_left_corner_y = data["upper_left_corner_y"]
-    width = data["width"]
-    height = data["height"]
-
+    upper_left_corner_x = data["left"]
+    upper_left_corner_y = data["top"]
+    width = data["right"] - data["left"]
+    height = data["bottom"] - data["top"]
     setup()
 }
 
-fetch("http://127.0.0.1:5000/login", {
+fetch("http://127.0.0.1:5000/getTile", {
     method: "GET", // "GET/POST"
     headers: {
         "Content-Type": "application/json"
@@ -77,9 +51,6 @@ fetch("http://127.0.0.1:5000/login", {
 }).then(response => response.json())
     .then(data => set_image(data)
     );
-
-// window.onload = setup;
-// setup();
 
 $(document).ready(function(){
         $('#my_canvas').Jcrop({
@@ -98,10 +69,6 @@ $(document).ready(function(){
     })
 
 })
-
-function getWidth() {
-    return "500"
-}
 
 function addCharacter() {
 
@@ -132,5 +99,5 @@ function resetTile(){
     var jcrop_api = $('#my_canvas').data("Jcrop");
     jcrop_api.release()
 
-    var elem = document.getElementById('character');
+    // var elem = document.getElementById('character');
 }
