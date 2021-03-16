@@ -1,9 +1,9 @@
 var identified_characters = [];
 
 // because top is a reserved word (but not that webstorm bothered to tell me)
-var upper = -1;
+var top_row = -1;
 var left = -1;
-var lower = -1;
+var bottom_row = -1;
 var right = -1;
 var chr = "";
 

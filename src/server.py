@@ -8,6 +8,15 @@ CORS(app)
 
 engine = db.create_engine('postgres://ghines:123456@127.0.0.1:5432/historical-transcriptions')
 
+stmt = """select * from tesseract_results 
+	left join human_results 
+		on tesseract_results.language_model = human_results.tesseract_language_model
+		and tesseract_results.index_wrt_lang_model = human_results.tile_index
+	where human_results.character is null
+	order by confidence limit 1
+"""
+
+
 @app.route("/getTile", methods=['POST', 'GET'])
 def get_tile():
     with engine.connect() as connection:
