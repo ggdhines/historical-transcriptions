@@ -75,6 +75,9 @@ function setup(){
     paragraph.textContent = "Identified Characters:  ";
     paragraph.style.color = 'black';
 
+    var empty_button = document.getElementById('isEmpty')
+    empty_button.checked = false
+
 }
 
 
