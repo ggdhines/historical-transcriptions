@@ -1,41 +1,41 @@
 var identified_characters = [];
 
-// because top is a reserved word (but not that webstorm bothered to tell me)
-var top_row = -1;
-var left = -1;
-var bottom_row = -1;
-var right = -1;
+// as opposed to top/bottom/left/right because of a bunch of name conflicts in html/sql/etc.
+var x_min = -1;
+var x_max = -1;
+var y_min = -1;
+var y_max = -1;
 var chr = "";
 
 // this are needed when returning values back to the server
-var language_model;
-var page_id;
-var index_wrt_lang_model;
+var tesseract_model;
+var cvae_model;
+var local_tile_index;
 
 // these are needed to load in the image
-// todo - could simplify this a bit
-var ship;
-var year;
-var month;
-var page;
+var file_prefix;
 
-
+// these are used for displaying the right part of the image
 var upper_left_corner_x;
 var upper_left_corner_y;
 var width;
 var height;
 
+
+const empty_button = document.getElementById('isEmpty')
+const add_button = document.getElementById("add")
+const submit_button = document.getElementById("submit")
+const reset_button = document.getElementById("reset")
+
 const source = document.getElementById('character');
-// const result = document.getElementById('result');
 
 const inputHandler = function(e) {
     // result.innerHTML = e.target.value;
-    var button = document.getElementById("add")
-    if ((upper != lower) && (left != right) && (e.target.value.length > 0)) {
-        button.disabled = false
+    if ((x_min != x_max) && (y_min != y_max) && (e.target.value.length > 0)) {
+        add_button.disabled = false
     }
     else {
-        button.disabled = true
+        add_button.disabled = true
     }
 }
 
@@ -44,10 +44,10 @@ source.addEventListener('input', inputHandler);
 
 function setup(){
     // making sure to reset completely
-    upper = -1;
-    left = -1;
-    lower = -1;
-    right = -1;
+    x_min = -1;
+    x_max = -1;
+    y_min = -1;
+    y_max = -1;
     chr = "";
 
     var canvas = document.getElementById('my_canvas');
@@ -60,41 +60,35 @@ function setup(){
         // https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/drawImage
         ctx.drawImage(image, upper_left_corner_x-buffer,upper_left_corner_y-buffer,width+2*buffer,height+2*buffer,0,0,200,200)
     };
-    image.src = "images/"+ship+"-"+year+"-"+month+"-"+page+"-aligned.png";
+    image.src = "images/"+file_prefix+"-aligned.png";
 
-    var submit_button = document.getElementById("submit")
+    // reset the buttons
     submit_button.disabled = true
-
-    var add_button = document.getElementById("add")
     add_button.disabled = true
-
-    var reset_button = document.getElementById("reset")
     reset_button.disabled = true
+    empty_button.checked = false
 
     var paragraph = document.getElementById("identified_characters");
     paragraph.textContent = "Identified Characters:  ";
     paragraph.style.color = 'black';
-
-    var empty_button = document.getElementById('isEmpty')
-    empty_button.checked = false
 
 }
 
 
 function set_image(data){
     console.log(data)
-    language_model = data["language_model"]
-    page_id = data["page_id"]
-    ship = data["ship_name"]
-    year = data["year"]
-    month = data["month"]
-    page = data["page_number"]
-    index_wrt_lang_model = data["index_wrt_lang_model"]
+    file_prefix = data["file_prefix"]
 
-    upper_left_corner_x = data["left"]
-    upper_left_corner_y = data["top"]
-    width = data["right"] - data["left"]
-    height = data["bottom"] - data["top"]
+    tesseract_model = data["tesseract_model"]
+    cvae_model = data["cvae_model"]
+    local_tile_index = data["local_tile_index"]
+
+    // remember that (0,0) is the top left hand corner
+    // so y increases as you go down :/
+    upper_left_corner_x = data["x_min"]
+    upper_left_corner_y = data["y_min"]
+    width = data["x_max"] - data["x_min"]
+    height = data["y_max"] - data["y_min"]
     setup()
 }
 
@@ -115,25 +109,21 @@ $(document).ready(function(){
             console.log(c);
 
             // todo - rescale!!!
-            left = parseInt(c.x);
-            upper = parseInt(c.y);
-            // todo - do we need to switch top and bottom?
-            lower = parseInt(c.y2);
-            right = parseInt(c.x2);
+            x_min = parseInt(c.x);
+            y_min = parseInt(c.y);
+            y_max = parseInt(c.y2);
+            x_max = parseInt(c.x2);
 
             var elem = document.getElementById('character');
             var temp_chr = elem.value
 
-            var button = document.getElementById("add")
-            if ((upper != lower) && (left != right) && (temp_chr.length > 0)) {
-                button.disabled = false
+            if ((x_min != x_max) && (y_min != y_max) && (temp_chr.length > 0)) {
+                add_button.disabled = false
             }
-
 
         },
             onRelease: function(c) {
-                var button = document.getElementById("add")
-                button.disabled = true
+                add_button.disabled = true
             },
         allowSelect: true,
         allowMove: true,
@@ -159,16 +149,12 @@ function submitTile() {
 }
 
 function empty() {
-    var add_button = document.getElementById("add")
-    var submit_button = document.getElementById("submit")
-    var reset_button = document.getElementById("reset")
-
     if (document.getElementById('isEmpty').checked)
     {
         add_button.disabled = true
         submit_button.disabled = false
 
-        identified_characters = [{"upper":null,"left":null,"lower":null,"right":null,"character":null}]
+        identified_characters = [{"x_min":null,"x_max":null,"y_min":null,"y_max":null,"character":null}]
         reset_button.disabled = false
     } else {
         add_button.disabled = false
@@ -195,13 +181,13 @@ function addCharacter() {
     chr = elem.value
     elem.value = ""
 
-    if (chr == "empty") {
-        // todo - make sure if that you say empty, you don't enter anything else
-        identified_characters.push([null,null,null,null,"empty"])
+    // special case holder for any tiles we might need to skip for whatever reasons
+    if (chr == "skip") {
+        identified_characters.push([null,null,null,null,"skip"])
 
     }
-    else if ((upper != lower) && (left != right) && (chr != "")) {
-        identified_characters.push([{"upper":upper,"left":left,"lower":lower,"right":right,"character":chr}])
+    else if ((x_min != x_max) && (y_min != y_max) && (chr != "")) {
+        identified_characters.push([{"x_min":x_min,"x_max":x_max,"y_min":y_min,"y_max":y_max,"character":chr}])
 
         var canvas = $("#my_canvas")[0];
         var context = canvas.getContext("2d");
@@ -215,16 +201,13 @@ function addCharacter() {
     }
 
     // we can't select empty if we have already entered a character
-    var empty = document.getElementById('isEmpty')
-    empty.disabled = true
+    empty_button.disabled = true
 
     // once we have entered at least one character, we can submit
-    var button = document.getElementById("submit")
-    button.disabled = false
+    submit_button.disabled = false
 
     // but we cannot add another character until we actually select something
-    var button = document.getElementById("add")
-    button.disabled = true
+    add_button.disabled = true
 
     var paragraph = document.getElementById("identified_characters");
     // make things look pretty if we have already selected some characters
@@ -239,7 +222,6 @@ function addCharacter() {
     paragraph.textContent += chr;
 
     // now that we have entered a character, we can reset if we want to
-    var reset_button = document.getElementById("reset")
     reset_button.disabled = false
 }
 
@@ -249,13 +231,12 @@ function resetTile(){
     var jcrop_api = $('#my_canvas').data("Jcrop");
     jcrop_api.release()
 
-    // we can't select empty if we have already entered a character
-    var empty = document.getElementById('isEmpty')
-    empty.disabled = false
-    empty.checked = false
 
-    var button = document.getElementById("add")
-    button.disabled = false
+    empty_button.disabled = false
+    empty_button.checked = false
+    add_button.disabled = true
+    reset_button.disabled = true
+    submit_button.disabled = true
 }
 
 window.onload = getTile
