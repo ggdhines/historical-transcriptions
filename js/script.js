@@ -168,7 +168,7 @@ function empty() {
         add_button.disabled = true
         submit_button.disabled = false
 
-        identified_characters = [[null,null,null,null,"empty"]]
+        identified_characters = [{"upper":null,"left":null,"lower":null,"right":null,"character":null}]
         reset_button.disabled = false
     } else {
         add_button.disabled = false
@@ -201,7 +201,7 @@ function addCharacter() {
 
     }
     else if ((upper != lower) && (left != right) && (chr != "")) {
-        identified_characters.push([{"top":upper,"left":left,"bottom":lower,"right":right,"character":chr}])
+        identified_characters.push([{"upper":upper,"left":left,"lower":lower,"right":right,"character":chr}])
 
         var canvas = $("#my_canvas")[0];
         var context = canvas.getContext("2d");
