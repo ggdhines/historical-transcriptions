@@ -12,21 +12,24 @@
 
 
     <body>
-
+    <p>Outline each individual character<br>
+    (On the off-chance that characters overlap,
+    outline the blob.)</p>
     <p align="center">
-        <canvas id = "my_canvas" width="500" height="500"></canvas>
+        <canvas id = "my_canvas" width="300" height="300"></canvas>
     </p>
 
 
-
+    <p id="identified_characters"></p>
 <form><br>
-Enter character: <label for="character"></label><input type="text" id="character"/><br><br>
-<!--Enter your Last Name: <input type="text" id="lastname"/><br><br>-->
-<!--<input type="submit" value="Submit" onclick="updatePreview()"/><br>-->
+    <input type="checkbox" id="isEmpty" name="isEmpty" onclick="empty()" />Empty<br><br>
+Enter character: <input type="text" id="character"/><br><br>
+
 </form>
+
 <button onclick="addCharacter();" id="add">Add Character</button>
 <button onclick="resetTile();" id="reset">Reset tile</button>
-<button onclick="submitTile();">Submit tile</button>
+<button onclick="submitTile();" id="submit">Submit tile</button>
     <script src="js/script.js"></script>
     </body>
     </html>
