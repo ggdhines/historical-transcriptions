@@ -6,18 +6,22 @@ import pandas as pd
 app = Flask(__name__)
 CORS(app)
 
-engine = db.create_engine('postgres://ghines:123456@127.0.0.1:5432/historical-transcriptions')
+with open("/home/ggdhines/password","r") as f:
+    user_id,psswd = f.read().strip().split(",")
+
+engine = db.create_engine(f'postgres://{user_id}:{psswd}@127.0.0.1:5432/historical-transcriptions')
 
 
 @app.route("/getTile", methods=['POST', 'GET'])
 def get_tile():
     with engine.connect() as connection:
-        with open("base_tile_query.sql","r") as f:
+        with open("base_tile_query.sql", "r") as f:
             stmt = f.read()
         result = connection.execute(stmt)
 
         d = dict(list(result)[0])
         return jsonify(d)
+
 
 @app.route("/submitTile", methods=['POST'])
 def submit_tile():
@@ -30,9 +34,10 @@ def submit_tile():
     df["local_tile_index"] = payload["local_tile_index"]
     print(df)
 
-    df.to_sql("user_results",engine.connect(),if_exists="append",index=False)
+    df.to_sql("user_results", engine.connect(), if_exists="append", index=False)
 
     return 'JSON Object Example'
 
+
 if __name__ == '__main__':
-    app.run(debug = True)
+    app.run(debug=True)
