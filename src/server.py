@@ -23,13 +23,17 @@ def get_tile():
 def submit_tile():
     payload = request.get_json()
 
+    print(payload["identified_characters"])
+    print(type(payload["identified_characters"]))
+
     df = pd.DataFrame.from_records(payload["identified_characters"])
-    df["tesseract_language_model"] = payload["language_model"]
-    df["tile_index"] = payload["index_wrt_lang_model"]
-    df["page_number"] = payload["page_id"]
+    df["file_prefix"] = payload["file_prefix"]
+    df["tesseract_model"] = payload["tesseract_model"]
+    df["cvae_model"] = payload["cvae_model"]
+    df["local_tile_index"] = payload["local_tile_index"]
     print(df)
 
-    df.to_sql("human_results",engine.connect(),if_exists="append",index=False)
+    df.to_sql("user_results",engine.connect(),if_exists="append",index=False)
 
 
     # with engine.connect() as connection:

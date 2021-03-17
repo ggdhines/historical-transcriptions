@@ -29,6 +29,8 @@ const reset_button = document.getElementById("reset")
 
 const source = document.getElementById('character');
 
+const display_tile_size = 200;
+
 const inputHandler = function(e) {
     // result.innerHTML = e.target.value;
     if ((x_min != x_max) && (y_min != y_max) && (e.target.value.length > 0)) {
@@ -41,6 +43,7 @@ const inputHandler = function(e) {
 
 source.addEventListener('input', inputHandler);
 // source.addEventListener('propertychange', inputHandler);
+
 
 function setup(){
     // making sure to reset completely
@@ -58,7 +61,7 @@ function setup(){
     var buffer = 20
     image.onload = function() {
         // https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/drawImage
-        ctx.drawImage(image, upper_left_corner_x-buffer,upper_left_corner_y-buffer,width+2*buffer,height+2*buffer,0,0,200,200)
+        ctx.drawImage(image, upper_left_corner_x-buffer,upper_left_corner_y-buffer,width+2*buffer,height+2*buffer,0,0,display_tile_size,display_tile_size)
     };
     image.src = "images/"+file_prefix+"-aligned.png";
 
@@ -149,13 +152,27 @@ function submitTile() {
 
 }
 
+function rescale(x1,x2,y1,y2) {
+    // rescale points - originally wrt the scale of the displayed tile
+    // back to the scale of the source page, i.e. what the rest of the system will understand
+    // not hard math, but helpful to have everything all in one place
+    let x1_r = x1/display_tile_size * width + upper_left_corner_x
+    let x2_r = x2/display_tile_size * width + upper_left_corner_x
+
+    let y1_r = y1/display_tile_size * height + upper_left_corner_y
+    let y2_r = y2/display_tile_size * height + upper_left_corner_y
+
+    return [Math.round(x1_r),Math.round(x2_r),Math.round(y1_r),Math.round(y2_r)]
+}
+
 function empty() {
     if (document.getElementById('isEmpty').checked)
     {
         add_button.disabled = true
         submit_button.disabled = false
 
-        identified_characters = [{"x_min":null,"x_max":null,"y_min":null,"y_max":null,"character":null}]
+        let rescaled_pts = rescale(0,display_tile_size,0,display_tile_size)
+        identified_characters = [{"x_min":rescaled_pts[0],"x_max":rescaled_pts[1],"y_min":rescaled_pts[2],"y_max":rescaled_pts[3],"character":null}]
         reset_button.disabled = false
     } else {
         add_button.disabled = false
@@ -188,14 +205,15 @@ function addCharacter() {
 
     }
     else if ((x_min != x_max) && (y_min != y_max) && (chr != "")) {
-        identified_characters.push([{"x_min":x_min,"x_max":x_max,"y_min":y_min,"y_max":y_max,"character":chr}])
+        let rescaled_pts = rescale(x_min,x_max,y_min,y_max)
+        identified_characters.push({"x_min":rescaled_pts[0],"x_max":rescaled_pts[1],"y_min":rescaled_pts[2],"y_max":rescaled_pts[3],"character":chr})
 
         var canvas = $("#my_canvas")[0];
         var context = canvas.getContext("2d");
 
         context.fillStyle = 'rgba(0,0,255,0.5)';
         // console.log(left,top,right-top,bottom-top)
-        context.fillRect(left,upper,right-left,lower-upper);
+        context.fillRect(x_min,y_min,x_max-x_min,y_max-y_min);
 
         var jcrop_api = $('#my_canvas').data("Jcrop");
         jcrop_api.release()
