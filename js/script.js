@@ -140,9 +140,10 @@ function submitTile() {
         headers: {
             "Content-Type": "application/json"
         },
-        body: JSON.stringify({"language_model":language_model,
-            "page_id":page_id,
-            "index_wrt_lang_model":index_wrt_lang_model,
+        body: JSON.stringify({"file_prefix":file_prefix,
+            "tesseract_model":tesseract_model,
+            "cvae_model":cvae_model,
+            "local_tile_index":local_tile_index,
             "identified_characters":identified_characters})
     }).then(response => getTile())
 
