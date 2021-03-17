@@ -35,8 +35,6 @@ const source = document.getElementById('character');
 
 const display_tile_size = 250;
 
-const jcrop_api = $('#my_canvas').data("Jcrop");
-
 const inputHandler = function(e) {
     // result.innerHTML = e.target.value;
     if ((x_min != x_max) && (y_min != y_max) && (e.target.value.length > 0)) {
@@ -138,6 +136,7 @@ function zoomOut() {
     zoomin_button.disabled = false
     reset_zoom.disabled = false
 
+    const jcrop_api = $('#my_canvas').data("Jcrop");
     jcrop_api.release()
 }
 
@@ -150,6 +149,7 @@ function zoomIn() {
         reset_zoom.disabled = true
     }
 
+    const jcrop_api = $('#my_canvas').data("Jcrop");
     jcrop_api.release()
 }
 
@@ -159,7 +159,7 @@ function resetZoom() {
 
     zoomin_button.disabled = true
 
-
+    const jcrop_api = $('#my_canvas').data("Jcrop");
     jcrop_api.release()
 }
 
@@ -320,6 +320,8 @@ function empty() {
     // remove the character just to emphasize the point
     var elem = document.getElementById('character');
     elem.value = ""
+
+    const jcrop_api = $('#my_canvas').data("Jcrop");
     jcrop_api.release()
 
 }
@@ -347,6 +349,7 @@ function addCharacter() {
         context.fillStyle = 'rgba(0,0,255,0.5)';
         context.fillRect(x_min,y_min,x_max-x_min,y_max-y_min);
 
+        const jcrop_api = $('#my_canvas').data("Jcrop");
         jcrop_api.release()
     }
 
@@ -381,6 +384,8 @@ function resetTile(){
     // go back to the original zoom
     current_buffer = initial_buffer
     setup()
+
+    const jcrop_api = $('#my_canvas').data("Jcrop");
     jcrop_api.release()
 
     empty_button.disabled = false
