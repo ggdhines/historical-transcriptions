@@ -21,15 +21,19 @@ var upper_left_corner_y;
 var width;
 var height;
 
+const initial_buffer = 10
+var current_buffer = initial_buffer
 
 const empty_button = document.getElementById('isEmpty')
 const add_button = document.getElementById("add")
 const submit_button = document.getElementById("submit")
 const reset_button = document.getElementById("reset")
+const zoomin_button = document.getElementById("zoomin")
+const reset_zoom = document.getElementById("resetzoom")
 
 const source = document.getElementById('character');
 
-const display_tile_size = 200;
+const display_tile_size = 250;
 
 const inputHandler = function(e) {
     // result.innerHTML = e.target.value;
@@ -45,6 +49,8 @@ source.addEventListener('input', inputHandler);
 // source.addEventListener('propertychange', inputHandler);
 
 
+var image = new Image();
+
 function setup(){
     // making sure to reset completely
     x_min = -1;
@@ -57,12 +63,7 @@ function setup(){
     var ctx = canvas.getContext('2d');
     identified_characters = []
 
-    var image = new Image();
-    var buffer = 20
-    image.onload = function() {
-        // https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/drawImage
-        ctx.drawImage(image, upper_left_corner_x-buffer,upper_left_corner_y-buffer,width+2*buffer,height+2*buffer,0,0,display_tile_size,display_tile_size)
-    };
+    image.onload = draw;
     image.src = "images/"+file_prefix+"-aligned.png";
 
     // reset the buttons
@@ -70,6 +71,9 @@ function setup(){
     add_button.disabled = true
     reset_button.disabled = true
     empty_button.checked = false
+    empty_button.disabled = false
+    zoomin_button.disabled = true
+    reset_zoom.disabled = true
 
     var paragraph = document.getElementById("identified_characters");
     paragraph.textContent = "Identified Characters:  ";
@@ -77,9 +81,78 @@ function setup(){
 
 }
 
+/**
+ * draw displays the tile at the desired current zoom (based on the buffer) as well as any currently selected
+ * characters
+ */
+function draw() {
+    var canvas = document.getElementById('my_canvas');
+    var ctx = canvas.getContext('2d');
+
+    // not sure if this is necessary but seems safe
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    ctx.drawImage(image,
+        upper_left_corner_x-current_buffer,
+        upper_left_corner_y-current_buffer,
+        width+2*current_buffer,
+        height+2*current_buffer,
+        0,
+        0,
+        display_tile_size,
+        display_tile_size)
+
+    ctx.fillStyle = 'rgba(0,0,255,0.5)';
+    let i;
+    for (i = 0; i < identified_characters.length; i++) {
+        // don't draw rectangles for empty tiles
+        if (identified_characters[i]["character"] != null) {
+            let character = scale_to_current_display(identified_characters[i])
+            ctx.fillRect(character["x_min"],character["y_min"],character["x_max"]-character["x_min"],character["y_max"]-character["y_min"]);
+        }
+    }
+
+    let boundary = {"x_min":upper_left_corner_x,"y_min":upper_left_corner_y,"x_max":upper_left_corner_x+width,"y_max":upper_left_corner_y+height}
+    let scaled_boundary = scale_to_current_display(boundary)
+
+    // draw a boundary where the actual tile corresponds to
+    ctx.lineWidth = "2";
+    ctx.strokeStyle = "green";
+    ctx.beginPath();
+    ctx.rect(scaled_boundary["x_min"],scaled_boundary["y_min"],scaled_boundary["x_max"]-scaled_boundary["x_min"],scaled_boundary["y_max"]-scaled_boundary["y_min"]);
+    ctx.stroke();
+}
+
+function zoomOut() {
+    // increase the buffer by 10 pixels (both X and Y axis)
+    current_buffer += 10
+
+    draw()
+
+    // we can reset to go back to the original zoom
+    // reset_button.disabled = false
+    zoomin_button.disabled = false
+    reset_zoom.disabled = false
+}
+
+function zoomIn() {
+    current_buffer -= 10
+    draw()
+
+    if (current_buffer === initial_buffer) {
+        zoomin_button.disabled = true
+        reset_zoom.disabled = true
+    }
+}
+
+function resetZoom() {
+    current_buffer = initial_buffer
+    draw()
+
+    zoomin_button.disabled = true
+}
 
 function set_image(data){
-    console.log(data)
     file_prefix = data["file_prefix"]
 
     tesseract_model = data["tesseract_model"]
@@ -106,12 +179,29 @@ function getTile() {
         );
 }
 
+/*
+    Does the selected region overlap at least a bit with the tile?
+ */
+function valid_region_selected() {
+    let boundary = {"x_min":upper_left_corner_x,"y_min":upper_left_corner_y,"x_max":upper_left_corner_x+width,"y_max":upper_left_corner_y+height}
+    let scaled_boundary = scale_to_current_display(boundary)
+
+    if ((x_max <= scaled_boundary["x_min"]) || (x_min >= scaled_boundary["x_max"]) || (y_max <= scaled_boundary["y_min"]) || (y_min >= scaled_boundary["y_max"])) {
+        return false
+    }
+    else if ((x_min !== x_max) && (y_min !== y_max)) {
+        return true
+    }
+    else {
+        return false
+    }
+
+
+}
+
 $(document).ready(function(){
         $('#my_canvas').Jcrop({
         onSelect: function(c){
-            console.log(c);
-
-            // todo - rescale!!!
             x_min = parseInt(c.x);
             y_min = parseInt(c.y);
             y_max = parseInt(c.y2);
@@ -120,8 +210,12 @@ $(document).ready(function(){
             var elem = document.getElementById('character');
             var temp_chr = elem.value
 
-            if ((x_min != x_max) && (y_min != y_max) && (temp_chr.length > 0)) {
+            if (valid_region_selected() && (temp_chr.length > 0)) {
                 add_button.disabled = false
+            }
+            // else prevents someone from selecting a valid region, enabling the add_button and switching to an invalid region
+            else {
+                add_button.disabled = true
             }
 
         },
@@ -137,7 +231,9 @@ $(document).ready(function(){
 })
 
 
-function submitTile() {
+function submitTile(){
+    // only do the rescaling just before submit, this will help when we need to redraw any regions as we zoom
+
     fetch("http://127.0.0.1:5000/submitTile", {
         method: "POST", // "GET/POST"
         headers: {
@@ -148,21 +244,42 @@ function submitTile() {
             "cvae_model":cvae_model,
             "local_tile_index":local_tile_index,
             "identified_characters":identified_characters})
-    }).then(response => getTile())
+    }).then(_ => getTile())
 
 }
 
-function rescale(x1,x2,y1,y2) {
+function scale_to_current_display(character){
+    let local_scale = {}
+
+    local_scale["x_min"] = Math.round((character["x_min"] - (upper_left_corner_x - current_buffer))/(width+2*current_buffer) * display_tile_size)
+    local_scale["x_max"] = Math.round((character["x_max"] - (upper_left_corner_x - current_buffer))/(width+2*current_buffer) * display_tile_size)
+
+    local_scale["y_min"] = Math.round((character["y_min"] - (upper_left_corner_y - current_buffer))/(height+2*current_buffer) * display_tile_size)
+    local_scale["y_max"] = Math.round( (character["y_max"] - (upper_left_corner_y - current_buffer))/(height+2*current_buffer) * display_tile_size)
+
+    return local_scale
+}
+
+
+
+function scale_to_whole_page(character,buffer_size) {
+    // by specifying the buffer size, we can use the original buffer size and not accidentally say the whole
+    // image is empty
+
+    let scaled = {"character":character["character"]}
     // rescale points - originally wrt the scale of the displayed tile
     // back to the scale of the source page, i.e. what the rest of the system will understand
     // not hard math, but helpful to have everything all in one place
-    let x1_r = x1/display_tile_size * width + upper_left_corner_x
-    let x2_r = x2/display_tile_size * width + upper_left_corner_x
 
-    let y1_r = y1/display_tile_size * height + upper_left_corner_y
-    let y2_r = y2/display_tile_size * height + upper_left_corner_y
+    // x_min/display_tile_size is how far across the displayed image x_min is as a percentage
+    // +2*buffer_size since we are showing slightly more than the selected tile
+    scaled["x_min"] = Math.round(character["x_min"]/display_tile_size * (width+2*buffer_size) + upper_left_corner_x - buffer_size)
+    scaled["x_max"] = Math.round(character["x_max"]/display_tile_size * (width+2*buffer_size) + upper_left_corner_x - buffer_size)
 
-    return [Math.round(x1_r),Math.round(x2_r),Math.round(y1_r),Math.round(y2_r)]
+    scaled["y_min"] = Math.round(character["y_min"]/display_tile_size * (height+2*buffer_size) + upper_left_corner_y - buffer_size)
+    scaled["y_max"] = Math.round(character["y_max"]/display_tile_size * (height+2*buffer_size) + upper_left_corner_y - buffer_size)
+
+    return scaled
 }
 
 function empty() {
@@ -171,8 +288,13 @@ function empty() {
         add_button.disabled = true
         submit_button.disabled = false
 
-        let rescaled_pts = rescale(0,display_tile_size,0,display_tile_size)
-        identified_characters = [{"x_min":rescaled_pts[0],"x_max":rescaled_pts[1],"y_min":rescaled_pts[2],"y_max":rescaled_pts[3],"character":null}]
+        let empty_character = {"x_min":0,"y_min":0,"x_max":display_tile_size,"y_max":display_tile_size,"character":null}
+        // by using the initial buffer size and the current one, we avoid people accidentally zooming out and saying that
+        // the whole page is empty
+        // todo - seems reasonable, but might want to double check logic
+        let scaled_empty_character = scale_to_whole_page(empty_character,initial_buffer)
+
+        identified_characters = [scaled_empty_character]
         reset_button.disabled = false
     } else {
         add_button.disabled = false
@@ -200,19 +322,19 @@ function addCharacter() {
     elem.value = ""
 
     // special case holder for any tiles we might need to skip for whatever reasons
-    if (chr == "skip") {
+    if (chr === "skip") {
         identified_characters.push([null,null,null,null,"skip"])
 
     }
-    else if ((x_min != x_max) && (y_min != y_max) && (chr != "")) {
-        let rescaled_pts = rescale(x_min,x_max,y_min,y_max)
-        identified_characters.push({"x_min":rescaled_pts[0],"x_max":rescaled_pts[1],"y_min":rescaled_pts[2],"y_max":rescaled_pts[3],"character":chr})
+    else if (valid_region_selected() && (chr !== "")) {
+        let character = {"x_min":x_min,"y_min":y_min,"x_max":x_max,"y_max":y_max,"character":chr}
+        let scaled_character = scale_to_whole_page(character,current_buffer)
+        identified_characters.push(scaled_character)
 
         var canvas = $("#my_canvas")[0];
         var context = canvas.getContext("2d");
 
         context.fillStyle = 'rgba(0,0,255,0.5)';
-        // console.log(left,top,right-top,bottom-top)
         context.fillRect(x_min,y_min,x_max-x_min,y_max-y_min);
 
         var jcrop_api = $('#my_canvas').data("Jcrop");
@@ -246,10 +368,12 @@ function addCharacter() {
 
 function resetTile(){
     identified_characters = []
+
+    // go back to the original zoom
+    current_buffer = initial_buffer
     setup()
     var jcrop_api = $('#my_canvas').data("Jcrop");
     jcrop_api.release()
-
 
     empty_button.disabled = false
     empty_button.checked = false

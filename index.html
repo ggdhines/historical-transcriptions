@@ -12,23 +12,22 @@
 
 
     <body>
-    <p>Outline each individual character fully within the tile.<br>
+    <p>Outline each character which overlaps with the green box.<br>
     (On the off-chance that characters overlap, outline the blob.)</p>
     <p align="center">
-        <canvas id = "my_canvas" width="300" height="300"></canvas>
+        <canvas id = "my_canvas" width="250" height="250"></canvas>
     </p>
-
-
     <p id="identified_characters"></p>
-<form><br>
+
     <input type="checkbox" id="isEmpty" name="isEmpty" onclick="empty()" />No characters<br><br>
 Enter character: <input type="text" id="character"/><br><br>
 
-</form>
-
 <button onclick="addCharacter();" id="add">Add Character</button>
 <button onclick="resetTile();" id="reset">Reset tile</button>
-<button onclick="submitTile();" id="submit">Submit tile</button>
+<button onclick="submitTile();" id="submit">Submit tile</button><br><br>
+    <button onclick="zoomOut();">Zoom out</button>
+    <button onclick="zoomIn();" id="zoomin">Zoom in</button>
+    <button onclick="resetZoom();" id="resetzoom">Reset zoom</button>
     <script src="js/script.js"></script>
     </body>
     </html>
