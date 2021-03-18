@@ -5,6 +5,9 @@ import os
 from IPython import display
 import time
 
+# https://stackoverflow.com/questions/58352326/running-the-tensorflow-2-0-code-gives-valueerror-tf-function-decorated-functio
+tf.config.run_functions_eagerly(True)
+
 # todo - refactor
 directory = "/home/ggdhines/bear/"
 
