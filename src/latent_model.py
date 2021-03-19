@@ -3,18 +3,21 @@ import tensorflow as tf
 import numpy as np
 import os
 from IPython import display
+import pandas as pd
 import time
+from sklearn import neighbors
+from joblib import dump, load
+from sklearn.preprocessing import OneHotEncoder
+
 
 # https://stackoverflow.com/questions/58352326/running-the-tensorflow-2-0-code-gives-valueerror-tf-function-decorated-functio
 tf.config.run_functions_eagerly(True)
 
-# todo - refactor
-directory = "/home/ggdhines/bear/"
-
-# taken from https://www.tensorflow.org/tutorials/generative/cvae
 
 class CVAE(tf.keras.Model):
-    """Convolutional variational autoencoder."""
+    """Convolutional variational autoencoder.
+        taken from https://www.tensorflow.org/tutorials/generative/cvae
+    """
 
     def __init__(self, latent_dim):
         super(CVAE, self).__init__()
@@ -69,6 +72,24 @@ class CVAE(tf.keras.Model):
             probs = tf.sigmoid(logits)
             return probs
         return logits
+
+    def characters_to_latent(self, images):
+        mu = []
+        sigma = []
+
+        for index in range(images.shape[0]):
+            print(index, end="\r")
+
+            original = images[index:index + 1, :, :, :]
+
+            a, b = self.encode(original)
+            z = self.reparameterize(a, b)
+
+            mu.append(float(z[0][0]))
+            sigma.append(float(z[0][1]))
+
+        df2 = pd.DataFrame({"mu": mu, "sigma": sigma})
+        return df2
 
 
 def log_normal_pdf(sample, mean, logvar, raxis=1):
@@ -166,7 +187,7 @@ def train_model(train_images, test_images, model_name, epochs):
     return model
 
 
-def load_or_train_model(train_images, test_images, model_name, epochs):
+def load_or_train_model(train_images, test_images, model_name, epochs,directory):
     """
     load a previously trained model. If no such model exists, train one
     """
@@ -190,6 +211,41 @@ def load_or_train_model(train_images, test_images, model_name, epochs):
                         .shuffle(test_size).batch(batch_size))
         for test_batch in test_dataset.take(1):
             test_sample = test_batch[0:num_examples_to_generate, :, :, :]
+            generate_images(model, 0, test_sample)
 
-        generate_images(model, 0, test_sample)
     return model
+
+
+def build_or_load_classifier(df,directory,model_name):
+    model_file = os.path.join(directory,model_name+"_knn_clf")
+    if os.path.isfile(model_file):
+        clf = load(model_file)
+    else:
+        clf = neighbors.KNeighborsClassifier(10, weights='uniform')
+        clf.fit(df[["mu", "sigma"]], df["character"])
+        dump(clf,model_file)
+
+    return clf
+
+
+def classify_latent(latent_df, clf, ideal_df=None):
+    """
+    classify each point in the latent dataframe with both the most likely character
+    and our confidence about that classification
+    """
+    probabilities = clf.predict_proba(latent_df[["mu", "sigma"]])
+
+    if ideal_df is None:
+        enc = OneHotEncoder(handle_unknown='ignore')
+        ideal_as_1hot = enc.fit_transform(latent_df[["character"]]).todense()
+        most_likely = np.multiply(ideal_as_1hot, probabilities)
+
+        return np.amax(most_likely,1)
+    else:
+        df = pd.DataFrame({"confidence": np.amax(probabilities, axis=1)})
+
+        most_likely_as_index = pd.DataFrame(probabilities.argmax(axis=1))
+        most_likely = pd.merge(most_likely_as_index, ideal_df[["character"]], left_on=0, right_index=True, how="left")
+        df["most_likely_character"] = most_likely["character"]
+
+        return df

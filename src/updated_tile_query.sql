@@ -13,7 +13,7 @@ select unprocessed_tiles.file_prefix,
 		x_max,
 		y_min,
 		y_max,
-		cvae_results.cvae_model from unprocessed_tiles
+		cvae_results.cvae_model,cvae_results.confidence from unprocessed_tiles
 	inner join cvae_results
 	on unprocessed_tiles.file_prefix = cvae_results.file_prefix
 		and unprocessed_tiles.local_tile_index = cvae_results.local_tile_index

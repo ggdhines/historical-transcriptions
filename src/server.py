@@ -2,6 +2,7 @@ from flask import Flask, redirect, url_for, request,jsonify
 from flask_cors import CORS
 import sqlalchemy as db
 import pandas as pd
+import os
 
 app = Flask(__name__)
 CORS(app)
@@ -14,8 +15,9 @@ engine = db.create_engine(f'postgres://{user_id}:{psswd}@127.0.0.1:5432/historic
 
 @app.route("/getTile", methods=['POST', 'GET'])
 def get_tile():
+    directory = os.path.abspath(__file__)[:-9]
     with engine.connect() as connection:
-        with open("base_tile_query.sql", "r") as f:
+        with open(directory + "updated_tile_query.sql", "r") as f:
             stmt = f.read()
         result = connection.execute(stmt)
 

@@ -3,6 +3,58 @@ import os
 import pandas as pd
 import cv2
 import numpy as np
+from sklearn.model_selection import train_test_split
+
+
+def upload_to_db(latent_df, split_label, tesseract_model_version, cvae_model_version, engine):
+    # just to make sure that we don't overwrite existing values
+    df = latent_df
+
+    # we will want to store results for both the testing and training sets
+    df["split"] = split_label
+    # in case we want to try different models (e.g. rebalanced sampling)
+    # need to store somewhere that cave_model = 0 => base, and tesseract_model = 0 > eng
+    # but by having numerical values, we can find the most recent models
+    df["cvae_model"] = cvae_model_version
+    # the tesseract language model also affects the tiles
+    df["tesseract_model"] = tesseract_model_version
+
+    columns = ["file_prefix",
+               "local_tile_index",
+               "most_likely_character",
+               "confidence",
+               "cvae_model",
+               "tesseract_model",
+               "split"]
+
+    df[columns].to_sql("cvae_results", engine, if_exists="append", index=False)
+
+def quick_tile_filter(tile_df,required_darkness,minimum_size,maximum_size):
+    m1 = tile_df["darkest_pixel"] <= required_darkness
+
+    m2 = tile_df["area"] <= maximum_size
+    m3 = tile_df["area"] >= minimum_size
+
+    # DO NOT reset index!!
+    return tile_df[m1 & m2 & m3]
+
+
+def split(df,images):
+    train_df,test_df = train_test_split(df, test_size=0.25, random_state=0)
+
+    train_images = images[train_df.index]
+    # we no longer need this index wrt to the original dataframe
+    train_df = train_df.reset_index(drop=True)
+
+    test_images = images[test_df.index]
+    test_df = test_df.reset_index(drop=True)
+
+    train_images = train_images / 255
+    test_images = test_images / 255
+
+    # sanity check
+    assert np.max(train_images) == 1
+    return train_images,test_images,train_df,test_df
 
 
 def load_tesseract_results(directory):
@@ -56,5 +108,7 @@ def load_tesseract_results(directory):
     s = tile_images.shape
     tile_images = tile_images.reshape((s[0], s[1], s[2], 1))
 
-    return tile_df,tile_images
+    # Because there are several reserved name conflicts in both SQL and Javascript/HTML
+    tile_df = tile_df.rename(columns={"top": "y_min", "bottom": "y_max", "left": "x_min", "right": "x_max"})
+    return tile_df, tile_images
 
