@@ -187,13 +187,16 @@ def train_model(train_images, test_images, model_name, epochs):
     return model
 
 
-def load_or_train_model(train_images, test_images, model_name, epochs,directory):
+def load_or_train_model(model_name,directory,train_images=None, test_images=None,epochs = None ):
     """
     load a previously trained model. If no such model exists, train one
     """
     weights_file = f"{directory}weights_{model_name}"
 
     if not os.path.exists(weights_file + ".index"):
+        assert train_images is not None
+        assert test_images is not None
+        assert epochs is not None
         model = train_model(train_images, test_images, model_name, epochs)
         model.save_weights(weights_file)
     else:
@@ -205,13 +208,13 @@ def load_or_train_model(train_images, test_images, model_name, epochs,directory)
         model = CVAE(latent_dim)
         model.load_weights(weights_file)
 
-        # show how the loaded model is doing
-        test_size = test_images.shape[0]
-        test_dataset = (tf.data.Dataset.from_tensor_slices(test_images)
-                        .shuffle(test_size).batch(batch_size))
-        for test_batch in test_dataset.take(1):
-            test_sample = test_batch[0:num_examples_to_generate, :, :, :]
-            generate_images(model, 0, test_sample)
+        # # show how the loaded model is doing
+        # test_size = test_images.shape[0]
+        # test_dataset = (tf.data.Dataset.from_tensor_slices(test_images)
+        #                 .shuffle(test_size).batch(batch_size))
+        # for test_batch in test_dataset.take(1):
+        #     test_sample = test_batch[0:num_examples_to_generate, :, :, :]
+        #     generate_images(model, 0, test_sample)
 
     return model
 
@@ -276,7 +279,6 @@ class Classifier:
         and our confidence about that classification
         """
         probabilities = self.clf.predict_proba(latent_df[["mu", "sigma"]])
-        print(probabilities[0,:])
         df = pd.DataFrame({"confidence": np.amax(probabilities, axis=1)})
 
         most_likely_as_index = pd.DataFrame(probabilities.argmax(axis=1))
