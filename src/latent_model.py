@@ -216,36 +216,71 @@ def load_or_train_model(train_images, test_images, model_name, epochs,directory)
     return model
 
 
-def build_or_load_classifier(df,directory,model_name):
-    model_file = os.path.join(directory,model_name+"_knn_clf")
-    if os.path.isfile(model_file):
-        clf = load(model_file)
-    else:
+class Classifier:
+    def __init__(self, directory, model_name,df=None):
+        if df is not None:
+            self.clf,self.character_set = self.build_classifier(df,directory,model_name)
+        else:
+            self.clf,self.character_set = self.load_classifier(directory,model_name)
+
+    @staticmethod
+    def build_classifier(df, directory, model_name):
+        model_file = os.path.join(directory, model_name + "_knn_clf")
+        if os.path.isfile(model_file):
+            print("Warning - overwriting existing saved model")
+
         clf = neighbors.KNeighborsClassifier(10, weights='uniform')
         clf.fit(df[["mu", "sigma"]], df["character"])
-        dump(clf,model_file)
+        dump(clf, model_file)
 
-    return clf
+        character_set = pd.DataFrame({"character":clf.classes_})
+        return clf,character_set
 
+    @staticmethod
+    def load_classifier(directory, model_name):
+        model_file = os.path.join(directory, model_name+"_knn_clf")
+        assert os.path.isfile(model_file)
 
-def classify_latent(latent_df, clf, ideal_df=None):
-    """
-    classify each point in the latent dataframe with both the most likely character
-    and our confidence about that classification
-    """
-    probabilities = clf.predict_proba(latent_df[["mu", "sigma"]])
+        clf = load(model_file)
 
-    if ideal_df is None:
+        character_set = pd.DataFrame({"character":clf.classes_})
+        return clf, character_set
+
+    def create_and_classify_idealized(self, latent_df):
+        """
+        calculate the idealized character for every character and get its confidence
+        :param latent_df:
+        :return:
+        """
+        ideal_df = latent_df.groupby("character")[["mu", "sigma"]].median().reset_index()
+        # make sure that the order in ideal_df matches the order in self.character_set
+        ideal_df = ideal_df.merge(self.character_set.reset_index(),on="character")
+        ideal_df = ideal_df.sort_values("index").drop("index",axis=1)
+
+        probabilities = self.clf.predict_proba(ideal_df[["mu", "sigma"]])
+
+        size_df = latent_df.groupby("character").size().reset_index()
+        size_df = size_df.rename(columns={0: "character_count"})
+        ideal_df = ideal_df.merge(size_df, on="character")
+
         enc = OneHotEncoder(handle_unknown='ignore')
-        ideal_as_1hot = enc.fit_transform(latent_df[["character"]]).todense()
-        most_likely = np.multiply(ideal_as_1hot, probabilities)
+        ideal_as_1hot = enc.fit_transform(self.character_set).todense()
+        self_probability = np.multiply(ideal_as_1hot, probabilities)
+        ideal_df["confidence"] = np.amax(self_probability,axis=1)
 
-        return np.amax(most_likely,1)
-    else:
+        return ideal_df
+
+    def classify_latent(self, latent_df):
+        """
+        classify each point in the latent dataframe with both the most likely character
+        and our confidence about that classification
+        """
+        probabilities = self.clf.predict_proba(latent_df[["mu", "sigma"]])
+        print(probabilities[0,:])
         df = pd.DataFrame({"confidence": np.amax(probabilities, axis=1)})
 
         most_likely_as_index = pd.DataFrame(probabilities.argmax(axis=1))
-        most_likely = pd.merge(most_likely_as_index, ideal_df[["character"]], left_on=0, right_index=True, how="left")
+        most_likely = most_likely_as_index.merge(self.character_set, left_on=0, right_index=True, how="left")
         df["most_likely_character"] = most_likely["character"]
 
         return df
