@@ -57,10 +57,62 @@ def split(df,images):
     return train_images,test_images,train_df,test_df
 
 
+def load_user_results(engine,directory):
+    """
+    :param engine: to connect to the sql database
+    :param directory: we still need to know where the images are stored
+    :return:
+    """
+    stmt = "select * from user_results"
+    user_tiles = pd.read_sql(stmt, engine)
+
+    tiles_to_return = []
+    sorted_df = []
+
+    for file_prefix in user_tiles["file_prefix"].unique():
+        image_fname = directory+file_prefix+"_ocr_ready.png"
+
+        m1 = user_tiles["file_prefix"] == file_prefix
+
+        tiles,meta_data = extract_tiles_from_image(image_fname,user_tiles[m1])
+
+        df = pd.concat([user_tiles[m1].reset_index(drop=True),meta_data],axis=1)
+        tiles_to_return.extend(tiles)
+        sorted_df.append(df)
+
+    sorted_df = pd.concat(sorted_df)
+    tiles_to_return = np.asarray(tiles_to_return)
+
+    return sorted_df,tiles_to_return
+
+def extract_tiles_from_image(image_fname,tile_df):
+    """
+    extract the actual tile images for each for in the given df as well as some additional useful information
+    :param image:
+    :param tile_df:
+    :return:
+    """
+    max_darkness = []
+    tiles = []
+
+    image = cv2.imread(image_fname, 0)
+
+    for _, row in tile_df.iterrows():
+        tile = image[row.y_min:row.y_max, row.x_min:row.x_max]
+        resized_tile = cv2.resize(tile, (28, 28))
+        max_darkness.append(np.min(tile))
+        tiles.append(resized_tile)
+
+    area = (tile_df["x_max"] - tile_df["x_min"]) * (tile_df["y_max"] - tile_df["y_min"])
+
+    tile_metainfo = pd.DataFrame({"area": area, "max_darkness": max_darkness}).reset_index(drop=True)
+    return tiles,tile_metainfo
+
 def load_tesseract_results(directory):
     tile_df = []
     tile_images = []
 
+    # search for all images which we have run through Tesseract
     for fname in os.listdir(directory):
         match = re.search("(.*)-(\d+)-(\d+)\-(\d*)_ocr_ready.png", fname)
         if match is None:
@@ -69,21 +121,18 @@ def load_tesseract_results(directory):
         print(fname, end="\r")
 
         csv_file = fname[:-13] + "ocr.csv"
-        img = cv2.imread(directory + fname, 0)
 
         tiles_on_page = pd.read_csv(directory + csv_file, delimiter=" ", error_bad_lines=False, engine="python", quoting=3)
+        # Because there are several reserved name conflicts in both SQL and Javascript/HTML
+        # todo - get rid of top etc. in the first place
+        tiles_on_page = tiles_on_page.rename(columns={"top": "y_min",
+                                                      "bottom": "y_max",
+                                                      "left": "x_min",
+                                                      "right": "x_max"})
+        tiles,tile_metainfo = extract_tiles_from_image(directory+fname, tiles_on_page)
 
-        #     m1 = tiles["confidence"] > 95
-        #     tiles = tiles[m1]
-
-        max_darkness = []
-        for _, row in tiles_on_page.iterrows():
-            tile = img[row.top:row.bottom, row.left:row.right]
-            resized_tile = cv2.resize(tile, (28, 28))
-            max_darkness.append(np.min(tile))
-            tile_images.append(resized_tile)
-
-        tiles_on_page["darkest_pixel"] = max_darkness
+        # add the additional metainfo for each tile
+        tiles_on_page = pd.concat([tiles_on_page,tile_metainfo],axis=1)
         tiles_on_page["file_prefix"] = fname[:-14]
 
         try:
@@ -99,16 +148,19 @@ def load_tesseract_results(directory):
 
         tile_df.append(tiles_on_page)
 
+        tile_images.extend(tiles)
+
     tile_df = pd.concat(tile_df, ignore_index=True)
-    tile_df["area"] = (tile_df["right"] - tile_df["left"]) * (tile_df["bottom"] - tile_df["top"])
+
     tile_df["model"] = 0
     tile_df = tile_df.rename(columns={})
 
     tile_images = np.asarray(tile_images)
     s = tile_images.shape
-    tile_images = tile_images.reshape((s[0], s[1], s[2], 1))
 
-    # Because there are several reserved name conflicts in both SQL and Javascript/HTML
-    tile_df = tile_df.rename(columns={"top": "y_min", "bottom": "y_max", "left": "x_min", "right": "x_max"})
+    # todo - think this reshape is only needed for CVAE
+    # tile_images = tile_images.reshape((s[0], s[1], s[2], 1))
+
+
     return tile_df, tile_images
 
